@@ -1,0 +1,26 @@
+{
+  "name": "youtube-transcript-extractor",
+  "version": "1.0.0",
+  "description": "Extract and transcribe YouTube videos - free and cost-effective",
+  "main": "index.js",
+  "type": "module",
+  "scripts": {
+    "start": "node index.js",
+    "transcribe": "node index.js"
+  },
+  "keywords": [
+    "youtube",
+    "transcript",
+    "transcription",
+    "whisper"
+  ],
+  "author": "",
+  "license": "MIT",
+  "dependencies": {
+    "@treeee/youtube-caption-extractor": "^1.5.5",
+    "chalk": "^5.3.0",
+    "puppeteer": "^24.30.0",
+    "yargs": "^17.7.2",
+    "youtube-transcript": "^1.2.1"
+  }
+}
