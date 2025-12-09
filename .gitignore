@@ -18,14 +18,14 @@ ENV/
 .whisper-version
 
 # Output files
-*.txt
+*.txt                    # Transcript files (transcript_*.txt, etc.)
 *.srt
 *.json
 !package.json
 
 # Temporary files
 *.wav
-*.mp3
+*.mp3                    # Converted MP3 audio files
 *.mp4
 audio.*
 temp_*
