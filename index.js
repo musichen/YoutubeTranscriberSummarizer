@@ -12,6 +12,15 @@ import { execSync } from 'child_process';
 import { readFileSync } from 'fs';
 
 /**
+ * Sanitize URL by removing backslash escapes (fixes zsh auto-escaping issue)
+ */
+function sanitizeUrl(url) {
+  if (!url) return url;
+  // Remove backslashes that escape special characters (e.g., \? becomes ?)
+  return url.replace(/\\/g, '');
+}
+
+/**
  * Extract YouTube video ID from various URL formats
  */
 function extractVideoId(url) {
@@ -581,7 +590,14 @@ async function main() {
 
   try {
     const { url, output, format, lang, print: shouldPrint, whisper } = argv;
-    const videoUrl = url; // Store for error messages
+    
+    // Sanitize URL (remove backslash escapes from terminal pasting)
+    const sanitizedUrl = sanitizeUrl(url);
+    const videoUrl = sanitizedUrl; // Store for error messages
+    
+    if (sanitizedUrl !== url) {
+      console.log(chalk.yellow('🔧 Sanitized URL (removed escape characters)'));
+    }
 
     if (whisper) {
       console.log(chalk.yellow('⚠️  Whisper mode requires Python setup. Run: python3 whisper_transcribe.py'));

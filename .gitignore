@@ -15,6 +15,7 @@ __pycache__/
 venv/
 env/
 ENV/
+.whisper-version
 
 # Output files
 *.txt

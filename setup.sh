@@ -152,6 +152,25 @@ if [[ $REPLY =~ ^[Yy]$ ]]; then
     
     source whisper-env/bin/activate
 
+    # Ask which Whisper implementation to install
+    echo ""
+    echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+    echo "🎙️  Choose Whisper Implementation:"
+    echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+    echo "   1) openai-whisper (default) - Official OpenAI implementation"
+    echo "   2) faster-whisper - Faster alternative, optimized for speed"
+    echo ""
+    read -p "Choose [1/2] (default: 1): " -n 1 -r WHISPER_CHOICE
+    echo ""
+    
+    WHISPER_PACKAGE="openai-whisper"
+    if [[ "$WHISPER_CHOICE" == "2" ]]; then
+        WHISPER_PACKAGE="faster-whisper"
+        echo -e "${YELLOW}   Selected: faster-whisper${NC}"
+    else
+        echo -e "${GREEN}   Selected: openai-whisper (default)${NC}"
+    fi
+    
     # Install Python packages
     echo ""
     echo "📦 Installing Python packages (Whisper, yt-dlp)..."
@@ -162,11 +181,33 @@ if [[ $REPLY =~ ^[Yy]$ ]]; then
     echo -e "${YELLOW}   Installing NumPy 1.x (required for Whisper compatibility)...${NC}"
     pip install "numpy<2" --quiet
     
-    # Try installing openai-whisper, fallback to faster-whisper if it fails
-    if ! pip install -U openai-whisper yt-dlp --quiet 2>/dev/null; then
-        echo -e "${YELLOW}   Standard Whisper failed, trying faster-whisper (alternative)...${NC}"
-        pip install -U faster-whisper yt-dlp --quiet
-        echo -e "${GREEN}   Note: Using faster-whisper (compatible alternative)${NC}"
+    # Install selected Whisper package
+    if [[ "$WHISPER_PACKAGE" == "faster-whisper" ]]; then
+        if pip install -U faster-whisper yt-dlp --quiet 2>/dev/null; then
+            echo -e "${GREEN}   ✓ faster-whisper installed successfully${NC}"
+        else
+            echo -e "${YELLOW}   faster-whisper installation failed, trying openai-whisper...${NC}"
+            if pip install -U openai-whisper yt-dlp --quiet 2>/dev/null; then
+                echo -e "${GREEN}   ✓ openai-whisper installed (fallback)${NC}"
+                WHISPER_PACKAGE="openai-whisper"
+            else
+                echo -e "${RED}   ❌ Both Whisper installations failed${NC}"
+                exit 1
+            fi
+        fi
+    else
+        if pip install -U openai-whisper yt-dlp --quiet 2>/dev/null; then
+            echo -e "${GREEN}   ✓ openai-whisper installed successfully${NC}"
+        else
+            echo -e "${YELLOW}   openai-whisper installation failed, trying faster-whisper...${NC}"
+            if pip install -U faster-whisper yt-dlp --quiet 2>/dev/null; then
+                echo -e "${GREEN}   ✓ faster-whisper installed (fallback)${NC}"
+                WHISPER_PACKAGE="faster-whisper"
+            else
+                echo -e "${RED}   ❌ Both Whisper installations failed${NC}"
+                exit 1
+            fi
+        fi
     fi
     
     # Ensure NumPy stays at 1.x
@@ -186,6 +227,7 @@ fi
 # Make scripts executable
 chmod +x index.js
 chmod +x whisper_transcribe.py
+chmod +x whisper_manager.py
 
 echo ""
 echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
@@ -201,9 +243,15 @@ echo "2. AI transcription (for videos without captions):"
 echo "   source whisper-env/bin/activate"
 echo "   python3 whisper_transcribe.py \"VIDEO_URL\""
 echo ""
-echo "3. See all options:"
+echo "3. Manage Whisper models:"
+echo "   source whisper-env/bin/activate"
+echo "   python3 whisper_manager.py list      # List installed models"
+echo "   python3 whisper_manager.py download  # Download models"
+echo ""
+echo "4. See all options:"
 echo "   node index.js --help"
 echo "   python3 whisper_transcribe.py --help"
+echo "   python3 whisper_manager.py --help"
 echo ""
 echo "📖 Read README.md for full documentation"
 echo ""

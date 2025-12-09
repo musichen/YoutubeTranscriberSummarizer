@@ -36,6 +36,39 @@ node index.js "https://www.youtube.com/watch?v=VIDEO_ID"
 python3 whisper_transcribe.py "https://www.youtube.com/watch?v=VIDEO_ID"
 ```
 
+### Method 3: YTTOOL - Unified YouTube Tool (New!)
+
+**✨ All-in-one tool for converting videos to MP3, downloading playlists, and transcribing**
+
+YTTOOL provides a unified CLI interface for common YouTube operations:
+
+```bash
+# Python version
+python3 yttool.py convert "YOUTUBE_URL"
+
+# Node.js version
+node yttool.js convert "YOUTUBE_URL"
+```
+
+**Features:**
+- 🎵 **MP3 Conversion** - Download audio and convert to MP3 with metadata
+- 📚 **Playlist Download** - Download entire playlists as MP3 (auto-detects or manual count)
+- 📝 **Text Transcription** - Calls existing Whisper/transcript tools
+
+The tool will prompt you to choose the format (mp3, mp3-playlist, or txt) if not specified.
+
+**Examples:**
+```bash
+# Convert single video to MP3
+python3 yttool.py convert "https://www.youtube.com/watch?v=VIDEO_ID" --format mp3
+
+# Download entire playlist as MP3
+python3 yttool.py convert "PLAYLIST_URL" --format mp3-playlist
+
+# Generate transcript
+python3 yttool.py convert "VIDEO_URL" --format txt
+```
+
 ---
 
 ## 📦 Installation
@@ -48,7 +81,7 @@ python3 whisper_transcribe.py "https://www.youtube.com/watch?v=VIDEO_ID"
 # Install from: https://nodejs.org (or use: brew install node)
 
 # Install dependencies
-cd /Users/musichen/src/cursorprojects/youtubeaitranscribersummmarizer
+cd /path/to/youtube-transcript-extractor
 npm install
 ```
 
@@ -58,13 +91,19 @@ npm install
 
 Whisper requires Python 3.12 (LTS). Python 3.13+ is **NOT compatible** due to dependency issues (Cython compilation errors).
 
+**During setup, you'll be asked to choose:**
+- **openai-whisper** (default) - Official OpenAI implementation
+- **faster-whisper** - Faster alternative, optimized for speed
+
+The default (openai-whisper) is recommended for most users. You can change this later by reinstalling.
+
 **Option A: Using pyenv (Recommended if you use pyenv):**
 ```bash
 # 1. Install Python 3.12.10 via pyenv (REQUIRED)
 pyenv install 3.12.10
 
 # 2. Set it for this project
-cd /Users/musichen/src/cursorprojects/youtubeaitranscribersummmarizer
+cd /path/to/youtube-transcript-extractor
 pyenv local 3.12.10
 
 # 3. Verify Python version
@@ -523,6 +562,360 @@ python3 whisper_transcribe.py "VIDEO_URL" -m medium -f srt -l en -o subtitles.sr
 
 ---
 
+### 🎛️ Whisper Model Manager - Managing Models
+
+The `whisper_manager.py` tool helps you manage Whisper models: list installed models, download new ones, delete unused models, and get detailed information about each model.
+
+**Important:** Always activate virtual environment first:
+```bash
+source whisper-env/bin/activate
+```
+
+#### Basic Syntax
+```bash
+python3 whisper_manager.py <command> [options]
+```
+
+---
+
+#### 1. List Installed Models
+
+**Show all installed models:**
+```bash
+python3 whisper_manager.py list
+```
+*Explanation: Displays all Whisper models currently installed on your system, with their sizes. Shows which model is currently active (set via `use` command). Shows total disk usage.*
+
+**Example output:**
+```
+🔍 Detected Whisper: openai-whisper
+
+======================================================================
+INSTALLED MODELS
+======================================================================
+
+✓ tiny     -    72.1 MB ← active
+✓ base     -   138.5 MB
+
+Total: 210.6 MB
+
+✓ Active model: tiny
+
+💡 To download more models:
+   python3 whisper_manager.py download <model_name>
+💡 To delete a model:
+   python3 whisper_manager.py delete <model_name>
+```
+
+**Note:** The `← active` marker shows which model is currently set as the default. This model will be used automatically by `whisper_transcribe.py` if you don't specify `-m`.
+
+---
+
+#### 2. List Remote Models
+
+**Show all available models (not just installed):**
+```bash
+python3 whisper_manager.py list-remote
+```
+*Explanation: Displays all available Whisper models that can be downloaded, with detailed information about each (size, RAM, speed, accuracy). Useful for deciding which model to download.*
+
+**Example output:**
+```
+======================================================================
+AVAILABLE WHISPER MODELS
+======================================================================
+
+📦 TINY
+   Description: Fastest option, good for quick previews
+   Parameters: 39M parameters
+   RAM Usage: ~1GB
+   Disk Space: ~75MB
+   Speed: Fastest
+   Accuracy: 70-80%
+
+📦 BASE
+   Description: Best balance of speed and accuracy (recommended)
+   ...
+```
+
+---
+
+#### 3. Set Active Model (Version Management)
+
+**Set a model as active (like nvm/pyenv):**
+```bash
+python3 whisper_manager.py use base
+```
+*Explanation: Sets `base` as the active model. This model will be used automatically by `whisper_transcribe.py` when you don't specify `-m` flag. Similar to how `nvm use` or `pyenv local` works.*
+
+**Switch to a different active model:**
+```bash
+python3 whisper_manager.py use tiny
+```
+*Explanation: Switches active model to `tiny`. The active model is stored in `.whisper-version` file (project-level) or `~/.whisper-version` (global).*
+
+**How it works:**
+- When you run `whisper_transcribe.py` without `-m`, it automatically uses the active model
+- If no active model is set, defaults to `base`
+- The active model is shown in `list` command with `← active` marker
+- You can set an active model even if it's not installed yet (useful for planning)
+
+**Example workflow:**
+```bash
+# Set base as active
+python3 whisper_manager.py use base
+
+# Transcribe without specifying model (uses base)
+python3 whisper_transcribe.py "VIDEO_URL"
+
+# Switch to tiny for faster processing
+python3 whisper_manager.py use tiny
+
+# Now uses tiny automatically
+python3 whisper_transcribe.py "VIDEO_URL"
+```
+
+---
+
+#### 4. Download Models
+
+**Download base model (recommended):**
+```bash
+python3 whisper_manager.py download base
+```
+*Explanation: Downloads the `base` model (~150MB). First-time download may take a few minutes. Model is cached for future use.*
+
+**Download tiny model (fastest):**
+```bash
+python3 whisper_manager.py download tiny
+```
+*Explanation: Downloads the smallest model (~75MB). Fastest transcription, lower accuracy. Good for quick previews.*
+
+**Download large model (best accuracy):**
+```bash
+python3 whisper_manager.py download large
+```
+*Explanation: Downloads the largest model (~3GB). Highest accuracy, slowest speed. Best for production-quality transcriptions.*
+
+**Available models:**
+- `tiny` - Fastest, least accurate (~75MB)
+- `base` - Best balance, recommended (~150MB)
+- `small` - Better accuracy (~500MB)
+- `medium` - High accuracy (~1.5GB)
+- `large` - Best accuracy (~3GB)
+
+---
+
+#### 5. Delete Models
+
+**Delete a model to free up space:**
+```bash
+python3 whisper_manager.py delete tiny
+```
+*Explanation: Removes the `tiny` model from disk. Prompts for confirmation unless `-y` flag is used.*
+
+**Delete with auto-confirm:**
+```bash
+python3 whisper_manager.py delete tiny -y
+```
+*Explanation: Deletes without confirmation prompt. Useful for scripts.*
+
+**Example output:**
+```
+⚠️  This will delete the 'tiny' model
+   Continue? (y/n): y
+✓ Deleted model 'tiny' (74.8 MB freed)
+```
+
+---
+
+#### 6. Model Information
+
+**Show info for all models:**
+```bash
+python3 whisper_manager.py info
+```
+*Explanation: Displays detailed information about all available Whisper models: size, RAM usage, speed, accuracy, and descriptions.*
+
+**Show info for specific model:**
+```bash
+python3 whisper_manager.py info large
+```
+*Explanation: Shows detailed information for the `large` model only.*
+
+**Example output:**
+```
+======================================================================
+WHISPER MODEL INFORMATION
+======================================================================
+
+📦 TINY
+   Description: Fastest option, good for quick previews
+   Parameters: 39M parameters
+   RAM Usage: ~1GB
+   Disk Space: ~75MB
+   Speed: Fastest
+   Accuracy: 70-80%
+
+📦 BASE
+   Description: Best balance of speed and accuracy (recommended)
+   Parameters: 74M parameters
+   RAM Usage: ~1GB
+   Disk Space: ~150MB
+   Speed: Fast
+   Accuracy: 85-90%
+
+...
+```
+
+---
+
+#### 7. Common Workflows
+
+**Check what models you have and set active:**
+```bash
+python3 whisper_manager.py list
+python3 whisper_manager.py use base
+python3 whisper_transcribe.py "VIDEO_URL"  # Uses active model automatically
+```
+
+**Download multiple models for testing:**
+```bash
+python3 whisper_manager.py download tiny
+python3 whisper_manager.py download base
+python3 whisper_manager.py download medium
+```
+
+**Free up disk space by removing unused models:**
+```bash
+python3 whisper_manager.py list
+python3 whisper_manager.py delete tiny -y
+python3 whisper_manager.py delete small -y
+```
+
+**Test different models for quality comparison:**
+```bash
+# Set and test tiny (fast)
+python3 whisper_manager.py use tiny
+python3 whisper_transcribe.py "VIDEO_URL" -o test_tiny.txt
+
+# Switch to base (balanced)
+python3 whisper_manager.py use base
+python3 whisper_transcribe.py "VIDEO_URL" -o test_base.txt
+
+# Test large (best quality) - override active model
+python3 whisper_transcribe.py "VIDEO_URL" -m large -o test_large.txt
+```
+
+---
+
+#### 8. Model Comparison Guide
+
+| Model | Size | RAM | Speed | Accuracy | Use Case |
+|-------|------|-----|-------|----------|----------|
+| `tiny` | 75MB | 1GB | Fastest | 70-80% | Quick previews, testing |
+| `base` | 150MB | 1GB | Fast | 85-90% | **Recommended default** |
+| `small` | 500MB | 2GB | Medium | 90-93% | Better accuracy needed |
+| `medium` | 1.5GB | 5GB | Slow | 93-96% | Important content |
+| `large` | 3GB | 10GB | Slowest | 96-98% | Production quality |
+
+**Recommendation:** Start with `base` model. Download `large` only if you need maximum accuracy and have sufficient RAM/disk space.
+
+---
+
+#### 9. Troubleshooting
+
+**"Whisper not installed" error:**
+```bash
+# Install Whisper first
+./setup.sh
+# Or manually
+source whisper-env/bin/activate
+pip install openai-whisper
+```
+
+**Model download fails:**
+- Check internet connection
+- Ensure sufficient disk space (models range from 75MB to 3GB)
+- Try downloading a smaller model first
+
+**Can't find installed models:**
+- Models are cached in `~/.cache/whisper` (openai-whisper) or `~/.cache/huggingface` (faster-whisper)
+- The `list` command should detect them automatically
+- If not detected, try downloading the model again
+
+---
+
+#### 10. Where Are Whisper Models Stored?
+
+**📁 Model Storage Locations (macOS - Tested)**
+
+Whisper models are automatically downloaded and cached on your system. The location depends on which Whisper implementation you're using:
+
+**For `openai-whisper` (default):**
+- **Cache Directory:** `~/.cache/whisper/`
+- **Full Path (macOS):** `/Users/YOUR_USERNAME/.cache/whisper/`
+- **File Format:** Each model is stored as a single `.pt` (PyTorch) file
+- **File Names:**
+  - `tiny.pt` (~75MB)
+  - `base.pt` (~150MB)
+  - `small.pt` (~500MB)
+  - `medium.pt` (~1.5GB)
+  - `large.pt` (~3GB)
+
+**Example files on macOS:**
+```
+/Users/YOUR_USERNAME/.cache/whisper/tiny.pt
+/Users/YOUR_USERNAME/.cache/whisper/base.pt
+/Users/YOUR_USERNAME/.cache/whisper/small.pt
+/Users/YOUR_USERNAME/.cache/whisper/medium.pt
+/Users/YOUR_USERNAME/.cache/whisper/large.pt
+```
+
+**For `faster-whisper`:**
+- **Cache Directory:** `~/.cache/huggingface/hub/`
+- **Full Path (macOS):** `/Users/YOUR_USERNAME/.cache/huggingface/hub/`
+- **File Format:** Models are stored in subdirectories with multiple files
+- **Directory Pattern:** `models--guillaumekln--faster-whisper-{model_name}--{hash}/`
+
+**Example structure:**
+```
+/Users/YOUR_USERNAME/.cache/huggingface/hub/
+  └── models--guillaumekln--faster-whisper-base--{hash}/
+      ├── config.json
+      ├── model.bin
+      └── ... (other model files)
+```
+
+**⚠️ Note:** These paths are tested on macOS. On Linux and Windows, the `~/.cache/` directory should work similarly, but the exact paths may vary. The `~` symbol refers to your home directory.
+
+**To check your models:**
+```bash
+# List all installed models (recommended)
+python3 whisper_manager.py list
+
+# Or manually check the directory
+ls -lh ~/.cache/whisper/*.pt
+```
+
+**To free up disk space:**
+```bash
+# Delete specific models
+python3 whisper_manager.py delete tiny -y
+python3 whisper_manager.py delete small -y
+
+# Or manually delete files
+rm ~/.cache/whisper/medium.pt
+```
+
+**Active model not working:**
+- Check which model is active: `python3 whisper_manager.py list`
+- Verify the model is installed (should show `← active` marker)
+- If active model is not installed, either install it or set a different active model
+- Config file is stored in `.whisper-version` (project) or `~/.whisper-version` (global)
+
+---
+
 #### 8. Real-World Use Cases
 
 **Quick preview (fastest):**
@@ -925,7 +1318,7 @@ pyenv versions
 pyenv install 3.12.10
 
 # Set for this project (REQUIRED)
-cd /Users/musichen/src/cursorprojects/youtubeaitranscribersummmarizer
+cd /path/to/youtube-transcript-extractor
 pyenv local 3.12.10
 
 # Verify (MUST show 3.12.x)
@@ -973,6 +1366,7 @@ python3 --version  # Should show 3.12.10
 youtube-transcript-extractor/
 ├── index.js                  # JavaScript transcript extractor
 ├── whisper_transcribe.py     # Python Whisper transcriber
+├── whisper_manager.py         # Whisper model manager CLI
 ├── package.json              # Node.js dependencies
 ├── README.md                 # This file
 └── whisper-env/              # Python virtual environment (created during setup)

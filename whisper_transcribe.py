@@ -32,6 +32,14 @@ except ImportError:
     sys.exit(1)
 
 
+def sanitize_url(url):
+    """Remove backslash escapes from URL (fixes zsh auto-escaping issue)"""
+    if not url:
+        return url
+    # Remove backslashes that escape special characters (e.g., \? becomes ?)
+    return url.replace('\\', '')
+
+
 def download_audio(url, output_dir):
     """Download audio from YouTube video using yt-dlp"""
     print(f"📥 Downloading audio from: {url}")
@@ -214,8 +222,8 @@ Supported languages: en, es, fr, de, it, pt, nl, pl, ru, zh, ja, ko, and 90+ mor
     parser.add_argument(
         '-m', '--model',
         choices=['tiny', 'base', 'small', 'medium', 'large'],
-        default='base',
-        help='Whisper model size (default: base)'
+        default=None,
+        help='Whisper model size (default: base, or active model from whisper_manager.py use)'
     )
     parser.add_argument(
         '-f', '--format',
@@ -235,6 +243,32 @@ Supported languages: en, es, fr, de, it, pt, nl, pl, ru, zh, ja, ko, and 90+ mor
     
     args = parser.parse_args()
     
+    # Determine which model to use
+    model_to_use = args.model
+    if model_to_use is None:
+        # Try to get active model from whisper_manager config
+        config_file = Path.cwd() / ".whisper-version"
+        if not config_file.exists():
+            config_file = Path.home() / ".whisper-version"
+        
+        if config_file.exists():
+            try:
+                active_model = config_file.read_text().strip()
+                if active_model in ['tiny', 'base', 'small', 'medium', 'large']:
+                    model_to_use = active_model
+                    print(f"📌 Using active model: {active_model} (set via whisper_manager.py use)")
+            except Exception:
+                pass
+        
+        # Fallback to default
+        if model_to_use is None:
+            model_to_use = 'base'
+    
+    # Sanitize URL (remove backslash escapes from terminal pasting)
+    sanitized_url = sanitize_url(args.url)
+    if sanitized_url != args.url:
+        print(f"🔧 Sanitized URL (removed escape characters)")
+    
     # Create temp directory for audio download
     temp_dir = tempfile.mkdtemp(prefix='whisper_transcribe_')
     
@@ -243,11 +277,11 @@ Supported languages: en, es, fr, de, it, pt, nl, pl, ru, zh, ja, ko, and 90+ mor
         print("=" * 60)
         
         # Download audio
-        audio_file, video_title = download_audio(args.url, temp_dir)
+        audio_file, video_title = download_audio(sanitized_url, temp_dir)
         print(f"✓ Audio downloaded: {video_title}")
         
         # Transcribe
-        result = transcribe_audio(audio_file, args.model, args.language)
+        result = transcribe_audio(audio_file, model_to_use, args.language)
         print(f"✓ Transcription complete!")
         
         # Determine output filename
