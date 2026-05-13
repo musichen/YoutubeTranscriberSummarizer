@@ -9,7 +9,7 @@ import chalk from 'chalk';
 import fs from 'fs/promises';
 import path from 'path';
 import { execSync } from 'child_process';
-import { readFileSync } from 'fs';
+import { readFileSync, existsSync } from 'fs';
 
 /**
  * Sanitize URL by removing backslash escapes (fixes zsh auto-escaping issue)
@@ -90,6 +90,63 @@ async function getTranscriptWithOriginal(videoId, options = {}) {
 }
 
 /**
+ * Puppeteer's default managed Chrome is often missing (e.g. skipped install scripts).
+ * Prefer system Chrome so transcript browser fallback works out of the box.
+ */
+function resolveSystemChromeExecutable() {
+  const envPath = process.env.PUPPETEER_EXECUTABLE_PATH;
+  if (envPath && existsSync(envPath)) {
+    return envPath;
+  }
+  if (process.platform === 'darwin') {
+    const paths = [
+      '/Applications/Google Chrome.app/Contents/MacOS/Google Chrome',
+      '/Applications/Chromium.app/Contents/MacOS/Chromium',
+      '/Applications/Google Chrome Canary.app/Contents/MacOS/Google Chrome Canary',
+    ];
+    for (const p of paths) {
+      if (existsSync(p)) return p;
+    }
+  }
+  if (process.platform === 'win32') {
+    const paths = [
+      'C:\\Program Files\\Google\\Chrome\\Application\\chrome.exe',
+      'C:\\Program Files (x86)\\Google\\Chrome\\Application\\chrome.exe',
+    ];
+    for (const p of paths) {
+      if (existsSync(p)) return p;
+    }
+  }
+  if (process.platform === 'linux') {
+    const paths = [
+      '/usr/bin/google-chrome-stable',
+      '/usr/bin/google-chrome',
+      '/usr/bin/chromium',
+      '/usr/bin/chromium-browser',
+    ];
+    for (const p of paths) {
+      if (existsSync(p)) return p;
+    }
+  }
+  return null;
+}
+
+function buildPuppeteerLaunchOptions() {
+  const args = [
+    '--no-sandbox',
+    '--disable-setuid-sandbox',
+    '--disable-blink-features=AutomationControlled',
+  ];
+  const base = { headless: 'new', args };
+  const systemChrome = resolveSystemChromeExecutable();
+  if (systemChrome) {
+    return { ...base, executablePath: systemChrome };
+  }
+  // Use installed Google Chrome (avoids missing Puppeteer-bundled browser)
+  return { ...base, channel: 'chrome' };
+}
+
+/**
  * Method 3: Browser simulation with Puppeteer (most reliable, slower)
  */
 async function getTranscriptWithBrowser(videoUrl, options = {}) {
@@ -97,14 +154,7 @@ async function getTranscriptWithBrowser(videoUrl, options = {}) {
   try {
     console.log(chalk.yellow('   Trying browser simulation (this may take 10-30 seconds)...'));
     
-    browser = await puppeteer.launch({ 
-      headless: 'new',
-      args: [
-        '--no-sandbox', 
-        '--disable-setuid-sandbox',
-        '--disable-blink-features=AutomationControlled'
-      ]
-    });
+    browser = await puppeteer.launch(buildPuppeteerLaunchOptions());
     
     const page = await browser.newPage();
     
@@ -267,7 +317,12 @@ async function getTranscriptWithBrowser(videoUrl, options = {}) {
     return transcriptData;
     
   } catch (error) {
-    throw new Error(`Browser simulation failed: ${error.message}`);
+    let detail = error.message;
+    if (/Could not find Chrome|browser revision|Chrome \(ver\./i.test(detail)) {
+      detail +=
+        '\n\nTip: Install Google Chrome, or set PUPPETEER_EXECUTABLE_PATH to your Chrome/Chromium binary, or run: pnpm exec puppeteer browsers install chrome';
+    }
+    throw new Error(`Browser simulation failed: ${detail}`);
   } finally {
     if (browser) {
       await browser.close();
@@ -528,11 +583,28 @@ function formatSrtTime(milliseconds) {
 }
 
 /**
+ * Get or create the output directory
+ */
+async function getOutputDir() {
+  const outputDir = path.join(process.cwd(), 'output');
+  await fs.mkdir(outputDir, { recursive: true });
+  return outputDir;
+}
+
+/**
  * Save transcript to file
  */
 async function saveToFile(content, outputPath, format) {
   const extension = format === 'json' ? 'json' : format === 'srt' ? 'srt' : 'txt';
-  const filename = outputPath || `transcript_${Date.now()}.${extension}`;
+  const outputDir = await getOutputDir();
+  
+  let filename;
+  if (outputPath) {
+    // If user provided absolute path, use it; otherwise save to output folder
+    filename = path.isAbsolute(outputPath) ? outputPath : path.join(outputDir, outputPath);
+  } else {
+    filename = path.join(outputDir, `transcript_${Date.now()}.${extension}`);
+  }
   
   await fs.writeFile(filename, content, 'utf-8');
   return filename;
@@ -573,6 +645,12 @@ async function main() {
       default: true,
       description: 'Print transcript to console'
     })
+    .option('save', {
+      type: 'boolean',
+      default: true,
+      description:
+        'Save transcript under output/ (auto-named if -o omitted). Use --no-save for print-only.'
+    })
     .option('whisper', {
       alias: 'w',
       type: 'boolean',
@@ -589,7 +667,7 @@ async function main() {
     .argv;
 
   try {
-    const { url, output, format, lang, print: shouldPrint, whisper } = argv;
+    const { url, output, format, lang, print: shouldPrint, save: shouldSave, whisper } = argv;
     
     // Sanitize URL (remove backslash escapes from terminal pasting)
     const sanitizedUrl = sanitizeUrl(url);
@@ -627,8 +705,8 @@ async function main() {
       console.log('\n');
     }
 
-    // Save to file if output specified or auto-generate
-    if (output || !shouldPrint) {
+    // Always save to output/ by default (same folder as rest of the project tools)
+    if (shouldSave) {
       const savedPath = await saveToFile(formattedTranscript, output, format);
       console.log(chalk.green(`✓ Transcript saved to: ${savedPath}`));
     }

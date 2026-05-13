@@ -17,7 +17,18 @@ env/
 ENV/
 .whisper-version
 
-# Output files
+# Output directory - all generated files (everything inside)
+output/
+
+# Output files in root directory (catch any files that somehow end up in root)
+/*.txt                   # Any .txt files in root
+/*.mp3                   # Any .mp3 files in root
+/*.srt                   # Any .srt files in root
+/*.json                  # Any .json files in root (except package.json)
+/*.mp4                   # Any .mp4 files in root
+/*.wav                   # Any .wav files in root
+
+# Output files (legacy - files anywhere in project)
 *.txt                    # Transcript files (transcript_*.txt, etc.)
 *.srt
 *.json
@@ -38,6 +49,9 @@ temp_*
 .Trashes
 ehthumbs.db
 Thumbs.db
+
+# ytools-cli (built bundle; recreated by pnpm install → prepare)
+ytools-cli/dist/
 
 # IDE
 .vscode/

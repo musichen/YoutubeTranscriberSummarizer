@@ -26,6 +26,14 @@ def sanitize_url(url):
     return url.replace('\\', '')
 
 
+def get_output_dir():
+    """Get or create the output directory"""
+    script_dir = os.path.dirname(os.path.abspath(__file__))
+    output_dir = os.path.join(script_dir, 'output')
+    os.makedirs(output_dir, exist_ok=True)
+    return output_dir
+
+
 def generate_short_hash(text):
     """Generate a short hash from text"""
     return hashlib.md5(text.encode()).hexdigest()[:8]
@@ -82,7 +90,7 @@ def get_playlist_info(url):
 def convert_to_mp3(url, output_dir=None):
     """Download audio and convert to MP3"""
     if output_dir is None:
-        output_dir = os.getcwd()
+        output_dir = get_output_dir()
     
     # Get video info for filename
     print("📥 Fetching video information...")
@@ -144,7 +152,7 @@ def convert_to_mp3(url, output_dir=None):
 def convert_playlist_to_mp3(url, output_dir=None, count=None):
     """Download entire playlist and convert all videos to MP3 using yt-dlp native playlist support"""
     if output_dir is None:
-        output_dir = os.getcwd()
+        output_dir = get_output_dir()
     
     # Get playlist info for display (optional)
     print("📋 Fetching playlist information...")
@@ -214,16 +222,34 @@ def convert_to_txt(url):
         print(f"❌ Error: whisper_transcribe.py not found at {whisper_script}")
         sys.exit(1)
     
+    # Try to use virtual environment Python first (has all packages installed)
+    venv_python3 = os.path.join(script_dir, 'whisper-env', 'bin', 'python3')
+    venv_python = os.path.join(script_dir, 'whisper-env', 'bin', 'python')
+    python_cmd = sys.executable  # Default to current Python
+    
+    if os.path.exists(venv_python3):
+        python_cmd = venv_python3
+        print("✓ Using virtual environment Python (whisper-env)")
+    elif os.path.exists(venv_python):
+        python_cmd = venv_python
+        print("✓ Using virtual environment Python (whisper-env)")
+    else:
+        print("⚠️  Virtual environment not found, using current Python")
+        print("💡 For best results, run: ./setup.sh to create whisper-env")
+    
     # Call whisper_transcribe.py
     try:
         result = subprocess.run(
-            [sys.executable, whisper_script, url],
+            [python_cmd, whisper_script, url],
             check=True,
             capture_output=False
         )
         print("✅ Transcript generation completed")
     except subprocess.CalledProcessError as e:
         print(f"❌ Error running whisper_transcribe.py: {e}")
+        print("\n💡 Make sure Whisper is set up:")
+        print("   1. Run: ./setup.sh (creates whisper-env with correct Python version)")
+        print("   2. The virtual environment will be used automatically")
         sys.exit(1)
     except KeyboardInterrupt:
         print("\n⚠️  Cancelled by user")

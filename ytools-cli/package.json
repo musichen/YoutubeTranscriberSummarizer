@@ -1,0 +1,29 @@
+{
+  "name": "ytools-cli",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "packageManager": "pnpm@10.33.0",
+  "description": "Friendly interactive CLI for YouTube MP3, playlists, and transcripts (uses parent yttool.js). Install from repo root with pnpm (see README).",
+  "bin": {
+    "ytools": "./dist/cli.mjs"
+  },
+  "scripts": {
+    "build": "esbuild src/bootstrap.jsx --bundle --platform=node --format=esm --packages=external --outfile=dist/cli.mjs --jsx=automatic --banner:js='#!/usr/bin/env node'",
+    "dev": "node --import tsx/esm.mjs ./src/bootstrap.jsx",
+    "prepare": "pnpm run build"
+  },
+  "dependencies": {
+    "ink": "^5.2.1",
+    "ink-text-input": "^6.0.0",
+    "react": "^18.3.1",
+    "react-devtools-core": "^4.28.5"
+  },
+  "devDependencies": {
+    "esbuild": "^0.25.0",
+    "tsx": "^4.19.0"
+  },
+  "engines": {
+    "node": ">=18"
+  }
+}

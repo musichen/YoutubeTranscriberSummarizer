@@ -1,6 +1,7 @@
 {
   "name": "youtube-transcript-extractor",
   "version": "1.0.0",
+  "packageManager": "pnpm@10.33.0",
   "description": "Extract and transcribe YouTube videos - free and cost-effective",
   "main": "index.js",
   "type": "module",
@@ -16,6 +17,9 @@
   ],
   "author": "",
   "license": "MIT",
+  "devDependencies": {
+    "ytools-cli": "workspace:*"
+  },
   "dependencies": {
     "@treeee/youtube-caption-extractor": "^1.5.5",
     "chalk": "^5.3.0",

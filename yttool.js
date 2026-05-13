@@ -9,7 +9,7 @@ import { execSync } from 'child_process';
 import { readFileSync, existsSync, mkdirSync, renameSync } from 'fs';
 import { createInterface } from 'readline';
 import path from 'path';
-import { fileURLToPath } from 'url';
+import { fileURLToPath, pathToFileURL } from 'url';
 import yargs from 'yargs';
 import { hideBin } from 'yargs/helpers';
 import chalk from 'chalk';
@@ -17,6 +17,11 @@ import crypto from 'crypto';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
+
+/** Repo root when set (e.g. by ytools-cli); defaults to this file's directory */
+const PACKAGE_ROOT = process.env.YTTOOL_ROOT
+  ? path.resolve(process.env.YTTOOL_ROOT)
+  : __dirname;
 
 /**
  * Sanitize URL by removing backslash escapes (fixes zsh auto-escaping issue)
@@ -114,16 +119,28 @@ function getPlaylistInfo(url) {
 }
 
 /**
+ * Get or create the output directory
+ */
+function getOutputDir() {
+  const outputDir = path.join(process.cwd(), 'output');
+  if (!existsSync(outputDir)) {
+    mkdirSync(outputDir, { recursive: true });
+  }
+  return outputDir;
+}
+
+/**
  * Convert video to MP3
  */
 function convertToMp3(url, outputDir = null) {
   if (!checkYtDlp()) {
-    console.log(chalk.red('❌ Error: yt-dlp not found. Install with: brew install yt-dlp'));
-    process.exit(1);
+    const msg = 'yt-dlp not found. Install with: brew install yt-dlp';
+    console.log(chalk.red(`❌ Error: ${msg}`));
+    throw new Error(msg);
   }
   
   if (outputDir === null) {
-    outputDir = process.cwd();
+    outputDir = getOutputDir();
   }
   
   // Get video info for filename
@@ -180,7 +197,7 @@ function convertToMp3(url, outputDir = null) {
     return outputPath;
   } catch (e) {
     console.log(chalk.red(`❌ Error converting to MP3: ${e.message}`));
-    process.exit(1);
+    throw e;
   }
 }
 
@@ -189,12 +206,13 @@ function convertToMp3(url, outputDir = null) {
  */
 function convertPlaylistToMp3(url, outputDir = null) {
   if (!checkYtDlp()) {
-    console.log(chalk.red('❌ Error: yt-dlp not found. Install with: brew install yt-dlp'));
-    process.exit(1);
+    const msg = 'yt-dlp not found. Install with: brew install yt-dlp';
+    console.log(chalk.red(`❌ Error: ${msg}`));
+    throw new Error(msg);
   }
   
   if (outputDir === null) {
-    outputDir = process.cwd();
+    outputDir = getOutputDir();
   }
   
   // Get playlist info for display (optional)
@@ -231,31 +249,101 @@ function convertPlaylistToMp3(url, outputDir = null) {
   } catch (e) {
     console.log(chalk.red(`\n❌ Error downloading playlist: ${e.message}`));
     console.log(chalk.yellow('💡 Some videos may have been downloaded successfully. Check the output directory.'));
-    process.exit(1);
+    throw e;
   }
 }
 
 /**
- * Convert video to text transcript using index.js
+ * Convert video to text transcript - tries index.js first, falls back to whisper_transcribe.py
  */
 function convertToTxt(url) {
-  console.log('📝 Converting to text transcript using existing transcript tool...');
+  console.log('📝 Converting to text transcript...');
   
-  // Get path to index.js (same directory as this script)
-  const scriptPath = path.join(__dirname, 'index.js');
+  // First try index.js (faster, but may fail due to YouTube restrictions)
+  const indexScriptPath = path.join(PACKAGE_ROOT, 'index.js');
+  const whisperScriptPath = path.join(PACKAGE_ROOT, 'whisper_transcribe.py');
   
-  if (!existsSync(scriptPath)) {
-    console.log(chalk.red(`❌ Error: index.js not found at ${scriptPath}`));
-    process.exit(1);
+  if (existsSync(indexScriptPath)) {
+    console.log(chalk.blue('🔄 Trying fast transcript extraction (index.js)...'));
+    try {
+      execSync(`node "${indexScriptPath}" "${url}"`, { stdio: 'inherit' });
+      console.log(chalk.green('✅ Transcript generation completed'));
+      return;
+    } catch (e) {
+      console.log(chalk.yellow('\n⚠️  Fast extraction failed (YouTube restrictions).'));
+      console.log(chalk.yellow('🔄 Falling back to Whisper AI (more reliable)...\n'));
+    }
   }
   
-  // Call index.js
-  try {
-    execSync(`node "${scriptPath}" "${url}"`, { stdio: 'inherit' });
-    console.log(chalk.green('✅ Transcript generation completed'));
-  } catch (e) {
-    console.log(chalk.red(`❌ Error running index.js: ${e.message}`));
-    process.exit(1);
+  // Fallback to Whisper (more reliable, works for any video)
+  if (existsSync(whisperScriptPath)) {
+    try {
+      // Try to use virtual environment Python first (has all packages installed)
+      const venvPython3 = path.join(PACKAGE_ROOT, 'whisper-env', 'bin', 'python3');
+      const venvPython = path.join(PACKAGE_ROOT, 'whisper-env', 'bin', 'python');
+      let pythonCmd = null;
+      
+      // Check if pyenv is available and get pyenv's Python
+      let pyenvPython = null;
+      try {
+        const pyenvShim = execSync('which python3', { encoding: 'utf-8' }).trim();
+        // Check if it's a pyenv shim
+        if (pyenvShim.includes('.pyenv/shims')) {
+          pyenvPython = pyenvShim;
+        }
+      } catch (e) {
+        // pyenv not found or python3 not in path
+      }
+      
+      if (existsSync(venvPython3)) {
+        // Use venv Python, but ensure it uses pyenv's Python if available
+        // The venv should already be using pyenv's Python if created correctly
+        pythonCmd = venvPython3;
+        console.log(chalk.blue('✓ Using virtual environment Python (whisper-env)'));
+        if (pyenvPython) {
+          console.log(chalk.blue(`   (venv uses pyenv Python: ${pyenvPython})`));
+        }
+      } else if (existsSync(venvPython)) {
+        pythonCmd = venvPython;
+        console.log(chalk.blue('✓ Using virtual environment Python (whisper-env)'));
+        if (pyenvPython) {
+          console.log(chalk.blue(`   (venv uses pyenv Python: ${pyenvPython})`));
+        }
+      } else {
+        // Virtual environment not found, use pyenv Python if available, else system Python
+        if (pyenvPython) {
+          pythonCmd = pyenvPython;
+          console.log(chalk.blue(`✓ Using pyenv Python: ${pyenvPython}`));
+        } else {
+          try {
+            execSync('which python3', { stdio: 'ignore' });
+            pythonCmd = 'python3';
+            console.log(chalk.yellow('⚠️  Virtual environment not found, using system Python'));
+            console.log(chalk.yellow('💡 For best results, run: ./setup.sh to create whisper-env'));
+          } catch (e) {
+            const msg = 'python3 not found. Whisper requires Python. Install Python 3.12 via pyenv and run ./setup.sh';
+            console.log(chalk.red(`❌ Error: ${msg}`));
+            throw new Error(msg);
+          }
+        }
+      }
+      
+      // Use the Python interpreter (venv or pyenv or system)
+      execSync(`"${pythonCmd}" "${whisperScriptPath}" "${url}"`, { stdio: 'inherit' });
+      console.log(chalk.green('✅ Transcript generation completed'));
+    } catch (e) {
+      console.log(chalk.red(`❌ Error running whisper_transcribe.py: ${e.message}`));
+      console.log(chalk.yellow('\n💡 Make sure Whisper is set up:'));
+      console.log(chalk.white('   1. Run: ./setup.sh (creates whisper-env with correct Python version)'));
+      console.log(chalk.white('   2. Ensure pyenv is configured: pyenv global 3.12.12'));
+      console.log(chalk.white('   3. The virtual environment will be used automatically'));
+      throw e;
+    }
+  } else {
+    const msg = 'Neither index.js nor whisper_transcribe.py found under project root';
+    console.log(chalk.red(`❌ Error: ${msg}`));
+    console.log(chalk.yellow('💡 Make sure YTTOOL_ROOT points at the repository root'));
+    throw new Error(msg);
   }
 }
 
@@ -357,9 +445,32 @@ async function main() {
   }
 }
 
-// Run main
-main().catch((error) => {
-  console.error(chalk.red(`❌ Error: ${error.message}`));
-  process.exit(1);
-});
+function isExecutedAsCli() {
+  const entry = process.argv[1];
+  if (!entry) return false;
+  try {
+    return pathToFileURL(path.resolve(entry)).href === import.meta.url;
+  } catch {
+    return false;
+  }
+}
+
+export {
+  sanitizeUrl,
+  checkYtDlp,
+  getOutputDir,
+  getVideoInfo,
+  getPlaylistInfo,
+  convertToMp3,
+  convertPlaylistToMp3,
+  convertToTxt,
+  PACKAGE_ROOT,
+};
+
+if (isExecutedAsCli()) {
+  main().catch((error) => {
+    console.error(chalk.red(`❌ Error: ${error.message}`));
+    process.exit(1);
+  });
+}
 
