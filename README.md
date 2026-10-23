@@ -1432,6 +1432,14 @@ Found a bug or have a feature request? Feel free to:
 
 ---
 
+## Documentation
+
+- [QUICKSTART.md](QUICKSTART.md) - fastest path to a first transcript
+- [INSTALLATION_COMPLETE.md](INSTALLATION_COMPLETE.md) - full installation reference
+- [PYENV_SETUP.md](PYENV_SETUP.md) - detailed pyenv setup for the required Python version
+- [TRANSCRIPT_METHODS.md](TRANSCRIPT_METHODS.md) - how each transcript method works
+- [docs/](docs/) - architecture, project evolution, and app notes
+
 ## 📄 License
 
 MIT License - Free to use, modify, and distribute
