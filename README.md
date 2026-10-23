@@ -1439,6 +1439,7 @@ Found a bug or have a feature request? Feel free to:
 - [PYENV_SETUP.md](PYENV_SETUP.md) - detailed pyenv setup for the required Python version
 - [TRANSCRIPT_METHODS.md](TRANSCRIPT_METHODS.md) - how each transcript method works
 - [docs/](docs/) - architecture, project evolution, and app notes
+- [codebase.md](codebase.md) - codebase overview for new contributors
 
 ## 📄 License
 
